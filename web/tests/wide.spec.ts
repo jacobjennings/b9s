@@ -151,6 +151,22 @@ test("Back closes the side detail and Backspace steps back too", async ({ page, 
 
 const epic = (page: Page, id: string) => page.locator(`#wboard .wepic[data-epic="${id}"]`);
 
+test.describe("projects without epics", () => {
+  test.use({ fixture: { issues: SAMPLE.filter(i => i.type !== "epic").map(({ parent, ...i }) => i) } });
+
+  test("the board gives all its width to status columns in both lane layouts", async ({ page, project }) => {
+    await board(page, project);
+    for (let layout = 0; layout < 2; layout++) {
+      await expect(page.locator("#wboard .epich, #wboard .wepic, #wboard .lane")).toHaveCount(0);
+      await expect(card(page, "t-2")).toBeVisible();
+      const first = (await page.locator('#wboard .whead[data-tab="open"]').boundingBox())!;
+      const grid = (await page.locator("#wboard").boundingBox())!;
+      expect(Math.abs(first.x - grid.x)).toBeLessThan(4);
+      await page.keyboard.press("v");
+    }
+  });
+});
+
 test("the epic rail is the default: epics form the first column, level with their lane", async ({ page, project }) => {
   await board(page, project);
   const head = page.locator("#wboard .whead.epich");

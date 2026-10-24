@@ -295,8 +295,8 @@ function colColor(k: string): string {
   return tyOf(k)[1];
 }
 
-/** lanesShown says whether cards sit under epic lane headers, so a card's epic is already in view. */
-const lanesShown = () => S.board.lanes !== "off" && S.board.group !== "type";
+/** Check the whole project so filtering out an epic does not remove its rail. */
+const lanesShown = () => S.board.lanes !== "off" && S.board.group !== "type" && pool().some(i => i.type === "epic");
 
 /** railShown says whether the board draws the epic rail, whose lanes step through their heights (LaneHeight) rather than fold. */
 export const railShown = (): boolean => split() && S.board.lanes === "rail" && lanesShown();
@@ -538,7 +538,7 @@ export function revealBoardCursor(): void {
 function renderWideBoard(v: HTMLElement): void {
   const cols = boardCols().filter(([k]) => !S.board.hideEmpty || boardItems(k).length > 0);
   const per = new Map(cols.map(([k]) => [k, boardItems(k)]));
-  const lanes = S.board.lanes !== "off" && S.board.group !== "type";
+  const lanes = lanesShown();
   const folded = (k: string) => S.board.folded.has(k);
   const tmpl = (S.board.lanes === "rail" && lanes ? "200px " : "") + cols.map(([k]) => (folded(k) ? "34px" : "minmax(240px, 1fr)")).join(" ");
   const head = cols.map(([k, l]) => {
