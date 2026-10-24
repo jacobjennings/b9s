@@ -27,8 +27,8 @@ export const parseTime = (s: string): number => (s ? Date.parse(s) || 0 : 0);
 
 /**
  * md renders the small Markdown subset issue text uses: headings, lists,
- * fences, inline code, bold and links. Everything is escaped first, and a
- * link keeps only its text: an issue must not be able to navigate the app.
+ * fences, inline code, bold and links. Source text and link attributes are
+ * escaped separately so formatting never changes a destination or creates HTML.
  */
 export function md(src: string): string {
   const out: string[] = [];
@@ -38,10 +38,7 @@ export function md(src: string): string {
   let para: string[] = [];
   let code: string[] | null = null;
   let codeLanguage = "";
-  const inline = (s: string) => esc(s)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "<u>$1</u>");
+  const inline = (s: string): string => inlineMarkdown(s);
   const flush = () => {
     if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
     if (list) { out.push(`<${list.t}>${list.items.map(x => `<li>${inline(x)}</li>`).join("")}</${list.t}>`); list = null; }
@@ -72,6 +69,40 @@ export function md(src: string): string {
   if (code) out.push(`<pre><code>${esc((code as string[]).join("\n"))}</code></pre>`);
   flush();
   return out.join("");
+}
+
+/** Tokenize source before emitting HTML, keeping code and link targets opaque. */
+function inlineMarkdown(src: string, links = true): string {
+  const tokens = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\(<?((?:[^\s()<>]|\([^\s()]*\))*)>?\)|\bhttps?:\/\/[^\s<>`"']+/gi;
+  let out = "", end = 0;
+  for (const m of src.matchAll(tokens)) {
+    out += esc(src.slice(end, m.index));
+    end = m.index! + m[0].length;
+    if (m[1] !== undefined) out += `<code>${esc(m[1])}</code>`;
+    else if (m[2] !== undefined) out += `<b>${inlineMarkdown(m[2], links)}</b>`;
+    else if (m[3] !== undefined) {
+      const label = inlineMarkdown(m[3], false);
+      out += links ? httpLink(m[4], label) : label;
+    } else {
+      // Prose punctuation is outside a bare URL. Balanced parentheses belong
+      // to the destination, including common wiki and report URLs.
+      let url = m[0];
+      while (/[.,!?;:]$/.test(url) || (url.endsWith(")") && url.split(")").length > url.split("(").length)) url = url.slice(0, -1);
+      out += (links ? httpLink(url, esc(url)) : esc(url)) + esc(m[0].slice(url.length));
+    }
+  }
+  return out + esc(src.slice(end));
+}
+
+function httpLink(url: string, label: string): string {
+  // Require an explicit web scheme. URL alone also accepts relative and
+  // executable schemes, which must remain ordinary text in issue content.
+  if (!/^https?:\/\//i.test(url) || /[\u0000-\u0020\u007f]/.test(url)) return label;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return label;
+  } catch { return label; }
+  return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
 }
 
 /**

@@ -3,6 +3,80 @@ import net from "node:net";
 import { expect, freePort, open, row, SAMPLE, settled, startProject, stopProject, test } from "./harness";
 
 test.describe("reading", () => {
+  test("issue text exposes web links in every detail field", async ({ page, project }, testInfo) => {
+    const text = 'Visit https://example.com/report?a=1&b=2. Open [**the report**](http://example.com/wiki/Report_(draft)).';
+    await page.route("**/api/issue?id=t-1", async route => {
+      const response = await route.fetch();
+      const issue = await response.json();
+      for (const field of ["description", "design", "acceptance", "notes"]) issue[field] = text;
+      issue.comments = [{ id: "links", author: "alice", text, created_at: "2026-10-24T00:00:00Z" }];
+      await route.fulfill({ response, json: issue });
+    });
+    await page.context().route("http://example.com/**", route => route.fulfill({ body: "Report" }));
+    await open(page, project);
+    await row(page, "t-1").click();
+    const detail = page.locator(".detail");
+    for (const width of [390, 820, 1440, 2560]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(detail.locator(".md a")).toHaveCount(10);
+      for (const section of ["Description", "Design", "Acceptance", "Notes"]) {
+        const content = detail.locator(".dsec", { hasText: new RegExp(`^${section}$`) }).locator("+ .md");
+        await expect(content.locator("a").first()).toHaveAttribute("href", "https://example.com/report?a=1&b=2");
+        await expect(content.getByRole("link", { name: "the report" })).toHaveAttribute("href", "http://example.com/wiki/Report_(draft)");
+      }
+      const comment = detail.locator(".cm .md");
+      await expect(comment.locator("a")).toHaveCount(2);
+      await comment.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath(`comment-links-${width}.png`) });
+      await detail.locator(".md").first().scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath(`description-links-${width}.png`) });
+    }
+    const link = detail.getByRole("link", { name: "the report" }).first();
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    const original = page.url();
+    const popup = page.waitForEvent("popup");
+    await link.click();
+    const tab = await popup;
+    await expect(tab).toHaveURL("http://example.com/wiki/Report_(draft)");
+    await tab.close();
+    await link.focus();
+    const keyboardPopup = page.waitForEvent("popup");
+    await page.keyboard.press("Enter");
+    const keyboardTab = await keyboardPopup;
+    await expect(keyboardTab).toHaveURL("http://example.com/wiki/Report_(draft)");
+    await keyboardTab.close();
+    await expect(detail).toHaveAttribute("data-id", "t-1");
+    expect(page.url()).toBe(original);
+  });
+
+  test("unsafe links and code remain inert issue text", async ({ page, project }) => {
+    await page.route("**/api/issue?id=t-1", async route => {
+      const response = await route.fetch();
+      const issue = await response.json();
+      issue.description = [
+        '[script](javascript:alert(1)) [mixed](JaVaScRiPt:alert(1)) [data](data:text/html,bad) [file](file:///etc/passwd) [relative](/api/write)',
+        'javascript:alert(1) <img src=x onerror=alert(1)>',
+        '`https://example.com/code` `**literal** [literal](https://example.com)`',
+        '```\nhttps://example.com/fenced\n```',
+        '[quote](https://example.com/?q="onclick="alert(1))',
+        '[entity](https://example.com/?q=&quot;onclick=&quot;bad)',
+      ].join("\n\n");
+      await route.fulfill({ response, json: issue });
+    });
+    await open(page, project);
+    await row(page, "t-1").click();
+    const content = page.locator(".detail .md").first();
+    await expect(content.locator("a")).toHaveCount(2);
+    await expect(content.locator("a:not([href^='https://'])")).toHaveCount(0);
+    await expect(content.locator("[onclick], [onerror], img, script, code a, code b")).toHaveCount(0);
+    await expect(content.locator("code")).toHaveText([
+      "https://example.com/code", "**literal** [literal](https://example.com)", "https://example.com/fenced",
+    ]);
+    await expect(content.getByRole("link", { name: "quote", exact: true })).toHaveAttribute("href", 'https://example.com/?q="onclick="alert(1)');
+    await expect(content.getByRole("link", { name: "entity", exact: true })).toHaveAttribute("href", "https://example.com/?q=&quot;onclick=&quot;bad");
+  });
+
   test("detail shows scheduling dates in local time and omits unset dates", async ({ page, project }, testInfo) => {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));

@@ -503,6 +503,7 @@ function bindClicks(): void {
       return;
     }
     if (t.closest("input, textarea, select")) return;
+    if (e.key === "Enter" && t.closest("a[href]")) return;
     if (e.key === "Backspace" && !e.metaKey && !e.ctrlKey && !e.altKey) {
       // Back inside the app only: on the entry the app opened on it would leave the page.
       e.preventDefault();
