@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+version=$("$HOME/.local/bin/b9s" --version)
+commit=$(printf '%s\n' "$version" | awk '$1 == "commit" { sub(/^.*\/commit\//, "", $2); print $2 }')
+if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+    echo 'b9s --version did not report one full installed commit hash' >&2
+    exit 1
+fi
+printf '%s\n' "$commit"

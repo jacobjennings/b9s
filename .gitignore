@@ -79,6 +79,7 @@ target-*/
 .worktrees/
 
 # Local runtime output
+/.harness-runs/
 .beads.gate.lock
 .beads/dolt-config.log
 # Per-user tree view state (expanded nodes, flat-list toggle, bookmarks)

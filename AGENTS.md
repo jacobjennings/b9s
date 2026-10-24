@@ -2,6 +2,28 @@
 
 # AGENTS.md — b9s
 
+## Fork
+
+This fork runs the harness board through `harness board` and
+`harness-board.service`. Never open pull requests upstream. Do not add
+`.harness-tests` or scheduled test suites for this fork. Evidence for fixes is
+screenshots published with `HARNESS_PUBLISH` from the harness configuration.
+
+Build with vendored dependencies using `go build -mod=vendor ./cmd/b9s`.
+After changes reach main, run `make install-harness` from the clean main
+checkout. It stamps the full commit and a fork version, keeps the binary under
+`.b9s/install/`, links `~/.local/bin/b9s` to it, and restarts
+`harness-board.service`. An existing regular binary is preserved there first.
+Check `~/.local/bin/b9s --version`, `bash .harness-deploy`, and
+`systemctl --user is-active harness-board.service`, then load the board and
+publish a screenshot. The deployment probe reads the installed binary, so it
+continues to identify the deployed commit after the checkout advances.
+
+These fork rules override the upstream testing and session workflow below.
+Workers and reviewers never run tests, never close tasks, and use jj for version
+control. Follow the active harness worker or reviewer instructions for reporting
+and pushing.
+
 ## RULE 0 - THE FUNDAMENTAL OVERRIDE PEROGATIVE
 
 If I tell you to do something, even if it goes against what follows below, YOU MUST LISTEN TO ME. I AM IN CHARGE, NOT YOU.

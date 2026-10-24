@@ -2,7 +2,7 @@
 #
 # Build with SQLite FTS5 (full-text search) support enabled
 
-.PHONY: build install clean test test-stable web web-dev web-types web-e2e book
+.PHONY: build install install-harness clean test test-stable web web-dev web-types web-e2e book
 
 # Enable FTS5 for full-text search in SQLite exports
 export CGO_CFLAGS := -DSQLITE_ENABLE_FTS5
@@ -20,6 +20,27 @@ install:
 		exit 1; \
 	fi
 	go install ./cmd/b9s
+
+# Deploy only a committed main tree so the stamp reproduces the installed code.
+install-harness:
+	@set -eu; \
+	commit=$$(jj log -r @- --no-graph -T 'commit_id'); \
+	main=$$(jj log -r main --no-graph -T 'commit_id'); \
+	[ "$$commit" = "$$main" ] && [ -z "$$(jj diff --summary)" ] || { \
+		echo 'make install-harness: run from a clean main checkout' >&2; exit 1; \
+	}; \
+	dir="$(CURDIR)/.b9s/install"; \
+	mkdir -p "$$dir" "$$HOME/.local/bin"; \
+	go build -mod=vendor -trimpath \
+		-ldflags "-X github.com/vanderheijden86/b9s/pkg/version.Version=fork-$$commit -X github.com/vanderheijden86/b9s/pkg/version.Commit=$$commit" \
+		-o "$$dir/b9s-$$commit" ./cmd/b9s; \
+	"$$dir/b9s-$$commit" --version; \
+	if [ -f "$$HOME/.local/bin/b9s" ] && [ ! -L "$$HOME/.local/bin/b9s" ]; then \
+		cp -p "$$HOME/.local/bin/b9s" "$$dir/b9s-before-$$(date +%s%N)"; \
+	fi; \
+	ln -sfn "$$dir/b9s-$$commit" "$$HOME/.local/bin/b9s"; \
+	systemctl --user restart harness-board.service; \
+	systemctl --user is-active harness-board.service
 
 clean:
 	rm -f b9s
