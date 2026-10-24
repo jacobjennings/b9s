@@ -29,7 +29,8 @@ lane starts, is the epic cell's height and never shorter than three one-line
 cards. Open is tall enough for every open and in progress card. Full is as
 tall as the lane's tallest cell. A cell with more cards than its lane's
 height scrolls inside the lane, with a fade at each edge that has cards past
-it.**
+it. Before clipping cards, Compact and Open lanes share any unused viewport
+height, growing only as far as their cards require.**
 
 - The epic cell's arrow (▸ ▿ ▾) and `Tab` step one lane Compact, Open, Full
   and back to Compact. `Shift-Tab` steps every lane on the board together.
@@ -40,6 +41,10 @@ it.**
   is positioned out of the flow inside the grid cell. The grid then takes
   the row's height from the epic cell (Compact) or from the open and in
   progress cells (Open).
+- After natural row heights are measured, spare board height is shared among
+  lanes with clipped cards. A lane whose cards fit gives its remaining share
+  to the others. Resizing the board recalculates from natural heights, so
+  shrinking a viewport restores clipping rather than retaining tall rows.
 - A redraw keeps each cell's scroll. The cursor keys scroll a cell to keep
   the selected card in view and clear of the fade.
 - The fade is a mask over the cell's cards, so it adds no colour.
@@ -66,8 +71,9 @@ it.**
 
 ## Consequences
 
-- The board starts with every lane Compact, so far more epics fit on a
-  screen. A cell with many cards shows its first ones and a fade.
+- The board starts with every lane Compact. When the viewport has spare
+  height, lanes grow to show more cards instead of leaving that space blank.
+  Once the viewport is full, a cell with excess cards shows an edge fade.
 - The wheel over a cell scrolls that cell until its end. The board scrolls
   from the epic column and from the space between the cells.
 - `h` and `l` prefer a card in the cursor's own lane, because a scrolled

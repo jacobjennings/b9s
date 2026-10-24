@@ -496,7 +496,8 @@ function optsTab(): string {
  * not set its lane's height holds its cards in a box out of the flow, which
  * clips them: every cell of a Compact lane, whose height the epic cell sets,
  * and in an Open lane every cell but the open and in progress ones, which
- * set it. Only the box that holds the cursor's card scrolls (cur), so the
+ * set it. Spare viewport height lets clipped cells grow before they hide
+ * cards. Only the box that holds the cursor's card scrolls (cur), so the
  * wheel over any other cell scrolls the board. A folded column stays an
  * empty rail.
  */
@@ -511,6 +512,46 @@ function railCell(k: string, lane: string, h: LaneHeight, arr: Item[]): string {
 
 /** cellEdges watches the cell boxes of the board drawn last, so each marks its edges once laid out, and again when its size changes. */
 let cellEdges: ResizeObserver | null = null;
+let boardSize: ResizeObserver | null = null;
+
+/** Give clipped lanes spare viewport height before hiding any of their cards. */
+function fillBoardHeight(board: HTMLElement): void {
+  const top = board.scrollTop;
+  board.style.gridTemplateRows = "";
+  const epics = [...board.querySelectorAll<HTMLElement>(".wepic")];
+  if (!epics.length) return;
+  const head = board.querySelector<HTMLElement>(".whead")!;
+  const height = (e: HTMLElement) => {
+    const css = getComputedStyle(e);
+    return e.getBoundingClientRect().height + parseFloat(css.marginTop) + parseFloat(css.marginBottom);
+  };
+  const rows = epics.map(epic => {
+    const cells: HTMLElement[] = [];
+    for (let cell = epic.nextElementSibling; cell?.classList.contains("wcell"); cell = cell.nextElementSibling) cells.push(cell as HTMLElement);
+    const base = Math.max(height(epic), ...cells.map(height));
+    const need = Math.max(0, ...cells.map(cell => {
+      const box = cell.querySelector<HTMLElement>(".wbox");
+      return box ? box.scrollHeight - box.clientHeight : 0;
+    }));
+    return { base, need };
+  });
+  const css = getComputedStyle(board), header = height(head);
+  let spare = Math.max(0, board.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - header - rows.reduce((sum, row) => sum + row.base, 0));
+  // Share space across lanes, redistributing the share of a lane whose cards all fit.
+  let hungry = rows.filter(row => row.need > 0);
+  while (spare > 0.5 && hungry.length) {
+    const share = spare / hungry.length;
+    for (const row of hungry) {
+      const grow = Math.min(share, row.need);
+      row.base += grow;
+      row.need -= grow;
+      spare -= grow;
+    }
+    hungry = hungry.filter(row => row.need > 0.5);
+  }
+  board.style.gridTemplateRows = [header, ...rows.map(row => row.base)].map(h => `${h}px`).join(" ");
+  board.scrollTop = top;
+}
 
 /**
  * markCellEdges says which edges of a cell's box have cards past them, and
@@ -576,6 +617,11 @@ function renderWideBoard(v: HTMLElement): void {
   old?.querySelectorAll<HTMLElement>(".wbox").forEach(b => { if (b.scrollTop) cellTops.set(b.dataset.box!, b.scrollTop); });
   v.innerHTML = `<div class="tabs" id="tabs">${tools}</div><div class="bbody" id="bbody"><div class="wboard" id="wboard" style="grid-template-columns:${tmpl}">${rail ? `<div class="whead epich"><span>EPIC</span><b>${new Set(cols.flatMap(([k]) => per.get(k)!).map(i => laneOf(i) || "none")).size}</b></div>` : ""}${head}${rows}</div></div>`;
   const nb = document.getElementById("wboard")!;
+  if (rail) {
+    fillBoardHeight(nb);
+    boardSize ??= new ResizeObserver(entries => entries.forEach(e => fillBoardHeight(e.target as HTMLElement)));
+    boardSize.observe(nb);
+  }
   nb.scrollTop = top; nb.scrollLeft = left;
   const boxes = nb.querySelectorAll<HTMLElement>(".wbox");
   boxes.forEach(b => { const t = cellTops.get(b.dataset.box!); if (t) b.scrollTop = t; });
@@ -624,6 +670,7 @@ export function renderBoard(): void {
   const v = $("#vBoard");
   // The redraw replaces every cell box, so the old ones need no more watching.
   cellEdges?.disconnect();
+  boardSize?.disconnect();
   if (split()) renderWideBoard(v); else renderPhoneBoard(v);
 }
 

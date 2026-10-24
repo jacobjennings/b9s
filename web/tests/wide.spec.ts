@@ -367,6 +367,19 @@ test("\\ or the panel's button switches the detail between a side panel and the 
 test.describe("a lane taller than its epic cell", () => {
   test.use({ fixture: { issues: [...SAMPLE, ...[6, 7, 8, 9].map(n => ({ id: `t-${n}`, title: `[${n}] Task ${n}`, parent: "t-epic", priority: 3 }))] } });
 
+  test("Compact uses spare height and recalculates when the viewport shrinks", async ({ page, project }) => {
+    await page.setViewportSize({ width: 1920, height: 1440 });
+    await board(page, project);
+    const box = col(page, "open").first().locator(".wbox");
+    await expect.poll(() => box.evaluate(b => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
+    await expect(card(page, "t-9")).toBeInViewport();
+    await page.setViewportSize({ width: 1920, height: 400 });
+    await expect.poll(() => box.evaluate(b => b.scrollHeight - b.clientHeight)).toBeGreaterThan(1);
+    await page.setViewportSize({ width: 1920, height: 1440 });
+    await expect.poll(() => box.evaluate(b => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
+    await expect(card(page, "t-9")).toBeInViewport();
+  });
+
   test("in a Full lane the epic cell spans the whole lane", async ({ page, project }) => {
     await board(page, project);
     const step = epic(page, "t-epic").locator("[data-lane]");
@@ -390,6 +403,8 @@ test.describe("a lane with more blocked cards than open cards", () => {
   test.use({ fixture: { issues: [...SAMPLE, ...opens, ...blocked] } });
 
   test("Compact holds the cells at the epic's height, Open shows every open card, Full every card, and only the cursor's cell scrolls", async ({ page, project }) => {
+    // Keep the viewport full so this scenario exercises clipping and cell scrolling.
+    await page.setViewportSize({ width: 1440, height: 450 });
     await board(page, project);
     const step = epic(page, "t-epic").locator("[data-lane]");
     // The epic lane is the first row; the No epic lane holds only the loose chore.
