@@ -37,6 +37,36 @@ test("the chips choose which boxes show, and the ⚙ chip opens the board option
   await expect(page.locator("#sheetHost")).toContainText("Group by");
 });
 
+test.describe("a phone column taller than the screen", () => {
+  test.use({ fixture: { issues: Array.from({ length: 40 }, (_, n) => ({ id: `s-${String(n).padStart(2, "0")}`, title: `Scrollable card ${n + 1}` })) } });
+
+  test("touch scrolling reaches the last card without starting a drag", async ({ page, project, browserName }) => {
+    test.skip(browserName !== "chromium", "Native touch swipe injection uses Chromium's input protocol");
+    await open(page, project);
+    await page.locator('#bar [data-view="board"]').click();
+    const board = page.locator("#bcol");
+    const rect = (await board.boundingBox())!;
+    const input = await page.context().newCDPSession(page);
+    try {
+      const x = rect.x + rect.width / 2, y = rect.y + rect.height * 0.8;
+      for (let n = 0; n < 5; n++) {
+        await input.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+        for (let step = 1; step <= 20; step++) {
+          await input.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - step * 22 }] });
+          await page.evaluate(() => new Promise(requestAnimationFrame));
+        }
+        await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      }
+      await expect.poll(() => board.evaluate(b => b.scrollTop)).toBeGreaterThan(0);
+      await expect(board.locator('[data-card="s-39"]')).toBeInViewport();
+      await expect(page.locator(".card.ghost, .card.lifted, .detail")).toHaveCount(0);
+      expect(project.calls()).toEqual([]);
+    } finally {
+      await input.detach();
+    }
+  });
+});
+
 // Inside a box every lane of the column sits under a sticky epic header, as
 // option 1 of docs/mockups/mobile-board-hierarchy-options.html keeps them;
 // a phone has no epic rail, so the rail setting draws the same rows.

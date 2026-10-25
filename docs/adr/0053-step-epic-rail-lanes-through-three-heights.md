@@ -45,6 +45,8 @@ height, growing only as far as their cards require.**
   lanes with clipped cards. A lane whose cards fit gives its remaining share
   to the others. Resizing the board recalculates from natural heights, so
   shrinking a viewport restores clipping rather than retaining tall rows.
+- Every overflowing cell accepts wheel, trackpad and touch scrolling without
+  selecting a card first. At a cell's end, scrolling can continue to the board.
 - A redraw keeps each cell's scroll. The cursor keys scroll a cell to keep
   the selected card in view and clear of the fade.
 - The fade is a mask over the cell's cards, so it adds no colour.

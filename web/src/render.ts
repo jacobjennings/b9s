@@ -497,16 +497,15 @@ function optsTab(): string {
  * clips them: every cell of a Compact lane, whose height the epic cell sets,
  * and in an Open lane every cell but the open and in progress ones, which
  * set it. Spare viewport height lets clipped cells grow before they hide
- * cards. Only the box that holds the cursor's card scrolls (cur), so the
- * wheel over any other cell scrolls the board. A folded column stays an
- * empty rail.
+ * cards. Every box scrolls independently so every card stays reachable
+ * with the wheel or touch, regardless of the cursor. A folded column
+ * stays an empty rail.
  */
 function railCell(k: string, lane: string, h: LaneHeight, arr: Item[]): string {
   if (S.board.folded.has(k)) return `<div class="wcell rail lt" data-dcol="${esc(k)}"></div>`;
   const boxed = arr.length > 0 && (h === "compact" || (h === "open" && k !== "open" && k !== "in_progress"));
-  const cur = boxed && arr.some(i => i.id === S.cursor) ? " cur" : "";
   return boxed
-    ? `<div class="wcell lt wsc" data-dcol="${esc(k)}"><div class="wbox${cur}" data-box="${esc(lane + " " + k)}">${cellCards(arr)}</div></div>`
+    ? `<div class="wcell lt wsc" data-dcol="${esc(k)}"><div class="wbox" data-box="${esc(lane + " " + k)}">${cellCards(arr)}</div></div>`
     : `<div class="wcell lt" data-dcol="${esc(k)}">${cellCards(arr)}</div>`;
 }
 
@@ -612,7 +611,7 @@ function renderWideBoard(v: HTMLElement): void {
   const old = document.getElementById("wboard");
   const top = old ? old.scrollTop : 0, left = old ? old.scrollLeft : 0;
   // A cell keeps its place through a redraw, as the board does: a cursor move, a live update and a drop all redraw it.
-  // A box that clips its cards still takes a scrollTop, so a cell the cursor has left shows the cards it was scrolled to.
+  // A cell the cursor has left keeps showing the cards it was scrolled to.
   const cellTops = new Map<string, number>();
   old?.querySelectorAll<HTMLElement>(".wbox").forEach(b => { if (b.scrollTop) cellTops.set(b.dataset.box!, b.scrollTop); });
   v.innerHTML = `<div class="tabs" id="tabs">${tools}</div><div class="bbody" id="bbody"><div class="wboard" id="wboard" style="grid-template-columns:${tmpl}">${rail ? `<div class="whead epich"><span>EPIC</span><b>${new Set(cols.flatMap(([k]) => per.get(k)!).map(i => laneOf(i) || "none")).size}</b></div>` : ""}${head}${rows}</div></div>`;

@@ -402,7 +402,7 @@ test.describe("a lane with more blocked cards than open cards", () => {
   const blocked = Array.from({ length: 12 }, (_, n) => ({ id: `t-b${n + 1}`, title: `[b${n + 1}] Blocked ${n + 1}`, parent: "t-epic", status: "blocked", priority: 3 }));
   test.use({ fixture: { issues: [...SAMPLE, ...opens, ...blocked] } });
 
-  test("Compact holds the cells at the epic's height, Open shows every open card, Full every card, and only the cursor's cell scrolls", async ({ page, project }) => {
+  test("Compact holds the cells at the epic's height, Open shows every open card, Full every card, and all clipped cells scroll", async ({ page, project }) => {
     // Keep the viewport full so this scenario exercises clipping and cell scrolling.
     await page.setViewportSize({ width: 1440, height: 450 });
     await board(page, project);
@@ -419,13 +419,13 @@ test.describe("a lane with more blocked cards than open cards", () => {
     });
 
     // Compact: the epic cell sets the lane's height, and the open and blocked cells hold more cards than it shows.
-    // Neither holds the cursor's card, so neither scrolls.
+    // Both scroll even though neither holds the cursor's card.
     const compact = (await epic(page, "t-epic").boundingBox())!;
     expect(Math.abs(await bottom(box("blocked")) - (compact.y + compact.height))).toBeLessThanOrEqual(1);
     expect(await overflows("open")).toBe(true);
     expect(await overflows("blocked")).toBe(true);
-    await expect(box("open")).toHaveCSS("overflow-y", "hidden");
-    await expect(box("blocked")).toHaveCSS("overflow-y", "hidden");
+    await expect(box("open")).toHaveCSS("overflow-y", "auto");
+    await expect(box("blocked")).toHaveCSS("overflow-y", "auto");
     // The edge with more cards past it fades.
     await expect(box("blocked")).toHaveClass(/\bdown\b/);
     await expect(box("blocked")).not.toHaveClass(/\bup\b/);
@@ -438,7 +438,7 @@ test.describe("a lane with more blocked cards than open cards", () => {
     expect(lastOpen).toBeLessThanOrEqual(await bottom(cell("open")));
     expect(await bottom(box("blocked"))).toBeGreaterThanOrEqual(lastOpen);
     expect(await overflows("blocked")).toBe(true);
-    await expect(box("blocked")).toHaveCSS("overflow-y", "hidden");
+    await expect(box("blocked")).toHaveCSS("overflow-y", "auto");
     expect((await epic(page, "t-epic").boundingBox())!.height).toBeGreaterThan(compact.height);
 
     // Full: nothing in the lane scrolls, and the epic cell spans its last blocked card.
@@ -458,7 +458,7 @@ test.describe("a lane with more blocked cards than open cards", () => {
     await page.keyboard.press("l");
     await expect(card(page, "t-3")).toHaveClass(/sel/);
     await expect(box("blocked")).toHaveCSS("overflow-y", "auto");
-    await expect(box("open")).toHaveCSS("overflow-y", "hidden");
+    await expect(box("open")).toHaveCSS("overflow-y", "auto");
     for (const id of ["t-b1", "t-b2", "t-b3", "t-b4", "t-b5", "t-b6", "t-b7", "t-b8"]) {
       await page.keyboard.press("j");
       await expect(card(page, id)).toHaveClass(/sel/);
@@ -467,26 +467,25 @@ test.describe("a lane with more blocked cards than open cards", () => {
     const scrolled = await box("blocked").evaluate(b => b.scrollTop);
     expect(scrolled).toBeGreaterThan(0);
     await expect(box("blocked")).toHaveClass(/\bup\b/);
-    // The cell the cursor leaves stops scrolling and keeps its place and its fades through the redraw.
+    // The cell the cursor leaves stays scrollable and keeps its place and fades through the redraw.
     await page.keyboard.press("h");
     await expect(card(page, "t-1")).toHaveClass(/sel/);
-    await expect(box("blocked")).toHaveCSS("overflow-y", "hidden");
+    await expect(box("blocked")).toHaveCSS("overflow-y", "auto");
     expect(await box("blocked").evaluate(b => b.scrollTop)).toBe(scrolled);
     await expect(box("blocked")).toHaveClass(/\bup\b/);
     await expect(box("blocked")).toHaveClass(/\bdown\b/);
   });
 });
 
-// The wheel and a trackpad move through the epics, so a cell scrolls only
-// while it holds the cursor's card (b9m-vdp.4.26): over any other cell the
-// wheel scrolls the board, and never catches in a cell on the way.
+// Every cell accepts wheel scrolling without a selection. The epic rail
+// and space between cells remain available for scrolling the whole board.
 test.describe("a board taller than the window, with a lane that holds more cards than it shows", () => {
   const epics = Array.from({ length: 8 }, (_, n) => ({ id: `w-e${n + 1}`, title: `[e${n + 1}] Epic ${n + 1}`, type: "epic", priority: 2 }));
   const opens = epics.map((e, n) => ({ id: `w-${n + 1}`, title: `[${n + 1}] Open ${n + 1}`, parent: e.id, priority: 3 }));
   const blocked = Array.from({ length: 14 }, (_, n) => ({ id: `w-b${n + 1}`, title: `[b${n + 1}] Blocked ${n + 1}`, parent: "w-e1", status: "blocked", priority: 3 }));
   test.use({ fixture: { issues: [...epics, ...opens, ...blocked] } });
 
-  test("the wheel over a cell without the cursor scrolls the board, and over the cursor's cell scrolls that cell", async ({ page, project, isMobile }) => {
+  test("the wheel reaches an unselected cell's last card and the epic rail scrolls the board", async ({ page, project, isMobile }) => {
     test.skip(isMobile, "Playwright has no wheel in mobile WebKit, and an iPad scrolls the board by touch");
     await board(page, project);
     const wboard = page.locator("#wboard");
@@ -505,18 +504,26 @@ test.describe("a board taller than the window, with a lane that holds more cards
       await page.mouse.wheel(0, dy);
     };
 
-    // No card holds the cursor yet, so no cell scrolls, and the wheel over a cell with cards past its edge scrolls the board.
+    // No card holds the cursor yet, but every cell can scroll to its last card.
     await expect(page.locator("#wboard .card.sel")).toHaveCount(0);
-    for (const b of await page.locator("#wboard .wbox").all()) await expect(b).toHaveCSS("overflow-y", "hidden");
+    for (const b of await page.locator("#wboard .wbox").all()) await expect(b).toHaveCSS("overflow-y", "auto");
     expect(await blockedBox.evaluate(b => b.scrollHeight > b.clientHeight + 1)).toBe(true);
     expect(await wboard.evaluate(b => b.scrollHeight > b.clientHeight + 1)).toBe(true);
-    await wheelOver(blockedBox, 200);
+    await wheelOver(blockedBox, 2000);
+    await expect.poll(() => blockedBox.evaluate(b => b.scrollHeight - b.clientHeight - b.scrollTop)).toBeLessThanOrEqual(1);
+    await expect(card(page, "w-b14")).toBeInViewport();
+    await expect(blockedBox).not.toHaveClass(/\bdown\b/);
+    expect(await scrollTop(wboard)).toBe(0);
+    await expect(page.locator("#wboard .card.sel")).toHaveCount(0);
+
+    // The epic rail still scrolls through the lanes.
+    await wheelOver(epic(page, "w-e1"), 200);
     await expect.poll(() => scrollTop(wboard)).toBeGreaterThan(0);
     await settled(wboard);
-    expect(await scrollTop(blockedBox)).toBe(0);
 
     // A click puts the cursor in the cell, and the wheel over it then scrolls the cell while the board stays.
     await wboard.evaluate(b => { b.scrollTop = 0; });
+    await blockedBox.evaluate(b => { b.scrollTop = 0; });
     await card(page, "w-b1").click();
     await page.keyboard.press("Escape");
     await expect(page.locator(".detail")).toHaveCount(0);
@@ -528,11 +535,27 @@ test.describe("a board taller than the window, with a lane that holds more cards
     const cellTop = await settled(blockedBox);
     expect(await scrollTop(wboard)).toBe(boardTop);
 
-    // The cell the cursor leaves stops scrolling where the wheel left it.
+    // The cell the cursor leaves keeps its scroll and remains scrollable.
     await page.keyboard.press("h");
     await expect(card(page, "w-1")).toHaveClass(/sel/);
-    await expect(blockedBox).toHaveCSS("overflow-y", "hidden");
+    await expect(blockedBox).toHaveCSS("overflow-y", "auto");
     expect(await scrollTop(blockedBox)).toBe(cellTop);
+  });
+
+  test("a mouse drags the last card of a scrolled cell into another column", async ({ page, project, isMobile }) => {
+    test.skip(isMobile, "This exercises mouse dragging after wheel scrolling");
+    await board(page, project);
+    const box = page.locator('#wboard .wbox[data-box="w-e1 blocked"]');
+    const rect = (await box.boundingBox())!;
+    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    await page.mouse.wheel(0, 2000);
+    await expect.poll(() => box.evaluate(b => b.scrollHeight - b.clientHeight - b.scrollTop)).toBeLessThanOrEqual(1);
+    const last = card(page, "w-b14");
+    await expect(last).toBeInViewport();
+    await drag(page, mid((await last.boundingBox())!), mid((await page.locator('#wboard .whead[data-tab="open"]').boundingBox())!));
+    await expect.poll(() => project.issues().find(i => i.id === "w-b14")?.status).toBe("open");
+    await expect(col(page, "blocked").locator('[data-card="w-b14"]')).toHaveCount(0);
+    await expect(col(page, "open").locator('[data-card="w-b14"]')).toHaveCount(1);
   });
 });
 
