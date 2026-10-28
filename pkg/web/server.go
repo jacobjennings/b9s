@@ -9,7 +9,9 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -130,6 +132,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/issue", s.paired(s.handleIssue))
 	s.mux.HandleFunc("GET /api/memory-graph", s.paired(s.handleMemoryGraph))
 	s.mux.HandleFunc("GET /api/health", s.paired(s.handleHealth))
+	s.mux.HandleFunc("GET /api/host-pressure", s.paired(s.handleHostPressure))
 	s.mux.HandleFunc("GET /api/events", s.paired(s.handleEvents))
 	s.mux.HandleFunc("GET /api/projects", s.paired(s.handleProjects))
 	s.mux.HandleFunc("POST /api/projects/open", s.paired(s.csrf(s.handleOpenProject)))
@@ -190,6 +193,48 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, s.opts.Store.Health(s.opts.Writer.IsAvailable()))
+}
+
+// Harness opts in with a fixed local file. Never expose host data in public mode
+// or accept a caller-controlled filesystem path.
+func (s *Server) handleHostPressure(w http.ResponseWriter, r *http.Request) {
+	lines := []string{}
+	file := os.Getenv("B9S_HOST_PRESSURE_FILE")
+	if file == "" || s.opts.Public {
+		writeJSON(w, r, lines)
+		return
+	}
+	data, err := os.ReadFile(file)
+	if os.IsNotExist(err) {
+		writeJSON(w, r, lines)
+		return
+	}
+	var state struct {
+		Episodes map[string]struct {
+			Host      string  `json:"host"`
+			Reason    string  `json:"reason"`
+			Began     float64 `json:"began"`
+			EndedAt   float64 `json:"ended_at"`
+			SampledAt float64 `json:"sampled_at"`
+		} `json:"episodes"`
+	}
+	if err != nil || json.Unmarshal(data, &state) != nil {
+		http.Error(w, "Host pressure status unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	now := time.Now().Unix()
+	for _, episode := range state.Episodes {
+		if episode.EndedAt != 0 {
+			continue
+		}
+		line := fmt.Sprintf("%s: %s (%dm)", episode.Host, episode.Reason, (now-int64(episode.Began))/60)
+		if now-int64(episode.SampledAt) > 180 {
+			line += " · observation stale"
+		}
+		lines = append(lines, line)
+	}
+	sort.Strings(lines)
+	writeJSON(w, r, lines)
 }
 
 func (s *Server) handleMemoryGraph(w http.ResponseWriter, r *http.Request) {

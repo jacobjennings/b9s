@@ -34,6 +34,8 @@
     background: linear-gradient(90deg, var(--transparent), var(--banner-sheen) 50%, var(--transparent));
   }
   .banner[hidden] { display: none; }
+  .notices { flex: none; min-width: 0; }
+  .banner.pressure { height: auto; max-height: 120px; overflow-y: auto; white-space: normal; padding: 5px 12px; justify-content: flex-start; color: var(--orange); }
   .banner .t { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .banner .t::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
   .banner a { flex: none; color: var(--accent); text-decoration: none; opacity: 0.85; }
@@ -462,7 +464,7 @@
   .app:is(.desktop, .wide) .hd .ib { width: 34px; height: 34px; border-radius: 8px; }
   .app:is(.desktop, .wide) .hd .proj, .app:is(.desktop, .wide) .hd .dot { height: 34px; border-radius: 8px; }
   .app:is(.desktop, .wide) .hd .proj { margin-left: -4px; padding: 0 6px 0 4px; }
-  .app:is(.desktop, .wide) .banner { grid-column: 2 / -1; grid-row: 3; min-width: 0; }
+  .app:is(.desktop, .wide) .notices { grid-column: 2 / -1; grid-row: 3; min-width: 0; }
   .app:is(.desktop, .wide) .chips { grid-column: 2 / -1; grid-row: 4; min-width: 0; }
   .app:is(.desktop, .wide) .stale { grid-column: 2 / -1; grid-row: 5; min-width: 0; }
   .app:is(.desktop, .wide) .body, .app:is(.desktop, .wide) #sheetHost { display: contents; }

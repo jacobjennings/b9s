@@ -45,6 +45,7 @@ export const snapshot = () => get<Snapshot>("api/snapshot");
 export const issue = (id: string) => get<Issue>("api/issue?id=" + encodeURIComponent(id));
 export const query = (q: string) => get<QueryResult>("api/query?q=" + encodeURIComponent(q));
 export const health = () => get<Health>("api/health");
+export const hostPressure = () => get<string[]>("api/host-pressure");
 export const memoryGraph = () => get<MemoryGraphResponse>("api/memory-graph");
 export const projects = () => get<ProjectList>("api/projects");
 export const openProject = (key: string) => post<ProjectInfo>("api/projects/open", { key });

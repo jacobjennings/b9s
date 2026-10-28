@@ -101,6 +101,22 @@ function startLive(): void {
   setRetryLive(() => { stream.retryNow(); toast("Reconnecting…"); });
 }
 
+// Pressure changes independently of issue reloads. Poll after pairing, with one
+// request in flight, and keep the last observation visible on a network error.
+async function refreshHostPressure(): Promise<void> {
+  const el = document.getElementById("hostPressure");
+  if (!el) return;
+  try {
+    const lines = await api.hostPressure();
+    el.textContent = lines.length ? "Host pressure · " + lines.join(" · ") : "";
+    el.hidden = !lines.length;
+  } catch {
+    if (!el.hidden) el.textContent = "Host pressure status unavailable. Last observation: " + (el.dataset.last || "unknown");
+  }
+  if (!el.hidden && !el.textContent?.includes("status unavailable")) el.dataset.last = el.textContent || "";
+  window.setTimeout(() => void refreshHostPressure(), 30000);
+}
+
 async function boot(): Promise<void> {
   applyTextSize();
   const bootEl = $("#boot");
@@ -123,6 +139,7 @@ async function boot(): Promise<void> {
     render();
     bootEl.hidden = true;
     startLive();
+    void refreshHostPressure();
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) {
       bootEl.innerHTML = `<div><b>This browser is not paired.</b><br><br>Open the pairing link that <code>b9s web</code> printed when it started, once, on this device.</div>`;
