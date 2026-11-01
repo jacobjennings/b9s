@@ -221,7 +221,7 @@ export const GROUPS: Record<string, [string, string][]> = {
 /** colOf puts every status without a column of its own (deferred, review, …) in Open. */
 export function colOf(i: Item): string {
   const g = S.board.group;
-  if (g === "status") { const e = eff(i); return e === "in_progress" || e === "blocked" || e === "closed" ? e : "open"; }
+  if (g === "status") { if (i.awaiting_triage) return "triage"; const e = eff(i); return e === "in_progress" || e === "blocked" || e === "closed" ? e : "open"; }
   if (g === "priority") return String(i.priority);
   return i.type;
 }
@@ -231,6 +231,7 @@ export function boardCols(): [string, string][] {
   if (S.board.group === "status") {
     cols = cols.filter(([k]) => k === "open" ? (!S.st.size || S.st.has("open") || S.st.has("deferred")) : (!S.st.size ? k !== "closed" : S.st.has(k)));
   }
+  if (S.board.group === "status" && pool().some(i => i.awaiting_triage)) return [["triage", "Awaiting triage"], ...cols];
   return cols;
 }
 
@@ -276,6 +277,7 @@ const boardCounted = (i: Item, keep: Set<string> | null): boolean => boardCard(i
 
 function boardItems(key: string): Item[] {
   const keep = focusSet();
+  if (key === "triage") return pool().filter(i => i.awaiting_triage && boardCard(i, keep) && textMatches(i)).sort(SORTS[S.sort]);
   const ok = key === "closed" ? (i: Item) => boardCounted(i, keep) : (i: Item) => inBoard(i, keep);
   return pool().filter(i => colOf(i) === key && ok(i)).sort(SORTS[S.sort]);
 }
@@ -290,6 +292,7 @@ export function openCols(): [string, string][] { return boardCols().filter(([k])
 
 /** colColor is the dot of a column header: the status, priority or type colour of the column's key. */
 function colColor(k: string): string {
+  if (k === "triage") return "var(--muted)";
   if (S.board.group === "status") return stOf(k).c;
   if (S.board.group === "priority") return PC[Number(k)] || "var(--muted)";
   return tyOf(k)[1];

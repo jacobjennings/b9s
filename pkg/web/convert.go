@@ -1,6 +1,10 @@
 package web
 
 import (
+	"os"
+	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/vanderheijden86/b9s/pkg/model"
@@ -122,3 +126,29 @@ func formatTimePtr(t *time.Time) string {
 	}
 	return formatTime(*t)
 }
+
+// Apply the harness policy to the display without changing stored Beads labels.
+// A single project's name is authoritative. Multi-project rows carry their repo.
+func applyFollowupTriage(issue *Issue, project string) {
+	if issue.ClosedLike || !slices.Contains(issue.Labels, "needs-triage") ||
+		slices.Contains(issue.Labels, "owner") || slices.Contains(issue.Labels, "fix-test") {
+		return
+	}
+	if project == "" {
+		project = issue.Project
+		for _, label := range issue.Labels {
+			if value, ok := strings.CutPrefix(label, "triage-project:"); ok {
+				project = value
+				break
+			}
+		}
+	}
+	key := triageProjectSuffix.ReplaceAllString(project, "_")
+	if os.Getenv("HARNESS_FOLLOWUP_TRIAGE_"+key) == "off" {
+		return
+	}
+	issue.AwaitingTriage = true
+	issue.Ready = false
+}
+
+var triageProjectSuffix = regexp.MustCompile(`[^a-zA-Z0-9_]`)

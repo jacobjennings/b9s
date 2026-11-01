@@ -34,6 +34,7 @@ export interface Issue {
   project: string;
   blocked: boolean;
   ready: boolean;
+  awaiting_triage: boolean;
   closed_like: boolean;
 }
 

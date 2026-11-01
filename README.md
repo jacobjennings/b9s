@@ -183,3 +183,13 @@ The maintainer reviews every pull request and merges it as one squashed commit o
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+Harness follow-ups marked `needs-triage` appear in a separate **Awaiting triage**
+column on the web status board, including when the Ready filter is selected.
+They are excluded from ready counts. Dragging does not release triage. Use
+`harness triage <project> <card> --run`, `--defer`, or `--close <reason>` through
+the orchestrator. Owner and fix-test cards are exempt.
+`harness board` passes its configured `HARNESS_FOLLOWUP_TRIAGE_<project>`
+switches to the server. A value of `off` restores the normal view for that project.
+Restart the board after changing those configuration values.

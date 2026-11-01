@@ -81,12 +81,13 @@ type Issue struct {
 	DiscoveredFrom []string `json:"discovered_from"`
 	// Comments is empty in a snapshot, which carries only CommentCount.
 	// GET api/issue returns them with the other long text fields.
-	Comments     []Comment `json:"comments"`
-	CommentCount int       `json:"comment_count"`
-	Project      string    `json:"project"`
-	Blocked      bool      `json:"blocked"`
-	Ready        bool      `json:"ready"`
-	ClosedLike   bool      `json:"closed_like"`
+	Comments       []Comment `json:"comments"`
+	CommentCount   int       `json:"comment_count"`
+	Project        string    `json:"project"`
+	Blocked        bool      `json:"blocked"`
+	Ready          bool      `json:"ready"`
+	AwaitingTriage bool      `json:"awaiting_triage"`
+	ClosedLike     bool      `json:"closed_like"`
 }
 
 // Comment is one comment on an issue.

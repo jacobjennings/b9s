@@ -181,6 +181,10 @@ export const swipeRightLabel = (i: Item) => { const n = nextStatus(i); return ef
 export async function moveCard(id: string, target: string): Promise<void> {
   const i = get(id);
   if (!i || readOnly()) return;
+  if (i.awaiting_triage || target === "triage") {
+    toast("Follow-up triage belongs to the orchestrator. Use harness triage to release this card.");
+    return;
+  }
   const g = S.board.group;
   if (g === "status") {
     if (target === "open" && openBlockers(i).length) toast(`${shortId(id)} stays in Blocked: ${openBlockers(i).length} open blocker(s)`);

@@ -399,10 +399,18 @@ func (s *Store) Snapshot(bdFound bool) Snapshot {
 	if !s.info.All {
 		actor = registry.Resolve(ui.ResolveActor(s.actorDir)).Name
 	}
+	issues := leanIssues(s.issues)
+	for i := range issues {
+		project := s.info.Name
+		if s.info.All {
+			project = ""
+		}
+		applyFollowupTriage(&issues[i], project)
+	}
 	return Snapshot{
 		Version: s.version,
 		Project: s.info,
-		Issues:  leanIssues(s.issues),
+		Issues:  issues,
 		Actor:   actor,
 		People:  people(registry, s.issues),
 		Health:  s.healthLocked(bdFound),
@@ -418,6 +426,11 @@ func (s *Store) Issue(id string) (Issue, bool) {
 		if s.issues[i].ID == id {
 			s.requestMemoryLocked()
 			issue := convertIssue(&s.issues[i], statusByID(s.issues))
+			project := s.info.Name
+			if s.info.All {
+				project = ""
+			}
+			applyFollowupTriage(&issue, project)
 			issue.MemoryAvailable = s.memoryGraph.Available
 			issue.MemoryLoading = !s.memoryGraph.Available && s.memory.reading
 			issue.MemoryLinks = []IssueMemoryLink{}
